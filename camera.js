@@ -1,4 +1,4 @@
-function Camera() {
+function Camera(map) {
   // Initial camera position
   this.x = 10
   this.y = 500
@@ -11,6 +11,7 @@ function Camera() {
 
   // Max distance to draw
   this.maxDistance = 1500
+  this.rotatedMap = map.rotate() 
 }
 
 Camera.prototype.project = function(map, canvas) {
@@ -53,13 +54,12 @@ Camera.prototype.castRay = function(angle, map) {
   // Start casting ray from camera position
   var x = this.x
   var y = this.y
-/////////// Finding vertical intersection
-//Get first intersection
-  var intersection1 = this.getVerticalHit(x, y, angle, map)
-  var intersection2 = this.getHorizontalHit(x, y, angle, map)
-
-  var dist1 = intersection1 != null ? Math.sqrt(Math.pow(x - intersection1.x, 2) + Math.pow(y - intersection1.y, 2)) : Number.MAX_VALUE
-  var dist2 = intersection2 != null ? Math.sqrt(Math.pow(x - intersection2.x, 2) + Math.pow(y - intersection2.y, 2)) : Number.MAX_VALUE
+  var horizIntersect = this.getHorizontalHit(x, y, angle, map)
+  var yRot90 = x
+  var xRot90 = map.height - y
+  var verticalIntersect = this.getHorizontalHit(xRot90, yRot90, angle + 90, this.rotatedMap) //Vertical hits == horizontal hits for rotated map (90 deg)
+  var dist1 = horizIntersect != null ? Math.sqrt(Math.pow(x - horizIntersect.x, 2) + Math.pow(y - horizIntersect.y, 2)) : Number.MAX_VALUE
+  var dist2 = verticalIntersect != null ? Math.sqrt(Math.pow(xRot90 - verticalIntersect.x, 2) + Math.pow(yRot90 - verticalIntersect.y, 2)) : Number.MAX_VALUE
   if (dist1 == null && dist2 == null){
     alert('oh oh')
     debugger
@@ -69,34 +69,23 @@ Camera.prototype.castRay = function(angle, map) {
   }else{
     return dist2
   }
-  // Pre-compute Cartesian increments to make it faster
-  // var xIncrement = Math.cos(angle * DEG)
-  // var yIncrement = Math.sin(angle * DEG)
-  //
-  // for (var length = 0; length < this.maxDistance; length++) {
-  //   x += xIncrement
-  //   y += yIncrement
-  //
-  //   var hit = map.get(x, y)
-  //
-  //   if (hit) return length
-  // }
 }
 
 Camera.prototype.getHorizontalHit = function(x, y, angle, map){
-  var xIncr
-  var yIncr
-  if (angle < 0 && angle > -180){
+  var xIncr,
+      yIncr
+  if (this.rayDirection(angle).indexOf("up") >= 0){
     yIncr = -map.blockSize
-  }else if (angle > 0 && angle < 180){
+  }else if (this.rayDirection(angle).indexOf("down") >= 0){
     yIncr = map.blockSize
+  } else {
+    return null
   }
-  xIncr = yIncr / Math.tan(angle*DEG)
-//  console.log('Horizontal incr: ' + 'angle: ' + angle + '(' + xIncr + ', ' + yIncr + ')' )
+  xIncr = Math.abs(angle) == 90 ? 0 : xIncr = yIncr / Math.tan(angle*DEG)
 
   var intersection = this.getFirstHorizontalIntersection(x, y, angle, map)
   var hit = 0;
-  while (intersection && !hit && yIncr){
+  while (intersection && !hit){
     hit = map.get(intersection.x, intersection.y)
     if (!hit)
       intersection = this.getNextHorizontalIntersection(intersection, xIncr, yIncr, map)
@@ -107,71 +96,42 @@ Camera.prototype.getHorizontalHit = function(x, y, angle, map){
   return null
 }
 
-Camera.prototype.getNextHorizontalIntersection = function(prevIntersection, xIncr, yIncr, map){
-  var xNext = Math.max(0, Math.min(prevIntersection.x + xIncr, map.width))
-  var yNext = Math.max(0, Math.min(prevIntersection.y + yIncr, map.height))
-  return {x : xNext, y : yNext}
-}
-
 Camera.prototype.getFirstHorizontalIntersection = function(x, y, angle, map){
   var offset
-  if (angle < 0 && angle > -180){
+  if (this.rayDirection(angle).indexOf("up") >= 0){
     offset = -1
-  }else if (angle > 0 && angle < 180){
+  }else if (this.rayDirection(angle).indexOf("down") >= 0){
       offset = map.blockSize
   }else return null
-
   var point = {}
   point.y = Math.floor(y/map.blockSize) * map.blockSize + offset
-  point.x = x + (y-point.y)/Math.tan(-angle * DEG)
+  point.x = Math.abs(angle) == 90 ? x : x + (y-point.y)/Math.tan(-angle * DEG)
   return point
 }
 
-Camera.prototype.getVerticalHit = function(x, y, angle, map){
-  var xIncr
-  var yIncr
-  if (angle < -90 && angle > 90){
-    xIncr = -map.blockSize
-  }else if (angle > -90 && angle < 90){
-    xIncr = map.blockSize
-  }
-  yIncr = xIncr * Math.tan(angle*DEG)
-
-  var intersection = this.getFirstVerticalIntersection(x, y, angle, map)
-  var hit = 0;
-  while (intersection && !hit && xIncr){
-    hit = map.get(intersection.x, intersection.y)
-    if (!hit)
-      intersection = this.getNextVerticalIntersection(intersection, xIncr, yIncr, map)
-  }
-  if (hit){
-    return intersection
-  }
-  return null
+Camera.prototype.getNextHorizontalIntersection = function(prevIntersection, xIncr, yIncr, map){
+  var xNext = Math.max(-1, Math.min(prevIntersection.x + xIncr, map.width))
+  var yNext = Math.max(-1, Math.min(prevIntersection.y + yIncr, map.height))
+  return {x : xNext, y : yNext}
 }
 
-Camera.prototype.getNextVerticalIntersection = function(prevIntersection, xIncr, yIncr, map){
-  var xNext = Math.max(0, Math.min(prevIntersection.x + xIncr, map.width))
-  var yNext = Math.max(0, Math.min(prevIntersection.y + yIncr, map.height))
-  return {x : xNext, y : yNext}
+Camera.prototype.rayDirection = function(angle){
+  var dirs = []
+  if (Math.sin(angle*DEG) > 0){
+    dirs.push("down")
+  }else if (Math.sin(angle*DEG) < 0){
+    dirs.push("up")
+  }
+  if (Math.cos(angle*DEG) > 0){
+    dirs.push("right")
+  }else if (Math.cos(angle*DEG) < 0){
+    dirs.push("left")
+  }
+  return dirs
 }
 Camera.prototype.outsideMap = function(point){
   return (point.y < 0 || point.y > map.height || (point.x < 0 || point.x > map.width))
 }
-Camera.prototype.getFirstVerticalIntersection = function(x, y, angle, map){
-  var offset
-  if (angle < -90 && angle > 90){
-    offset = -1
-  }else if (angle > -90 && angle < 90){
-      offset = map.blockSize
-  }else return null
-
-  var point = {}
-  point.x = Math.floor(x/map.blockSize) * map.blockSize + offset
-  point.y = y + (x-point.x)*Math.tan(-angle * DEG)
-  return point
-}
-
 Camera.prototype.move = function(distance) {
   this.x += Math.cos(this.angle * DEG) * distance
   this.y += Math.sin(this.angle * DEG) * distance

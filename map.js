@@ -21,6 +21,20 @@ function Map() {
 
   this.blockSize = 100
   this.wallHeight = this.blockSize
+
+}
+
+Map.prototype.rotate = function(){
+  var map = new Map()
+  map.grid = this.grid
+  var n = Math.sqrt(map.grid.length)
+  var prot = map.grid.map(function(el,idx){return idx}).filter(function(el, idx){return el % n === 0}).reverse()
+  var rotatedIndexGrid = []
+  for (var i = 0; i < n; i++) {
+    rotatedIndexGrid = rotatedIndexGrid.concat(prot.map(function(p){return p + i}))
+  }
+  map.grid = rotatedIndexGrid.map(function(el){return map.grid[el]}, map)
+  return map
 }
 
 // Return the value stored in the map grid for (x, y).
