@@ -8,9 +8,9 @@ var game = new Game(canvas)
 game.onFrame(function() {
   // Move the camera
   if (game.keyPressed.up) {
-    camera.move(10)
+    camera.move(10, map)
   } else if (game.keyPressed.down) {
-    camera.move(-10)
+    camera.move(-10, map)
   }
 
   // Rotate the camera

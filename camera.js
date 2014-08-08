@@ -11,26 +11,24 @@ function Camera(map) {
 
   // Max distance to draw
   this.maxDistance = 1500
-  this.rotatedMap = map.rotate() 
+  this.rotatedMap = map.rotate()
 }
 
 Camera.prototype.project = function(map, canvas) {
   var context = canvas.getContext("2d")
 
   // Loop over each ray angles to cast
-  var angle = this.angle - (this.fov / 2)
+  castAngle = this.angle - (this.fov / 2)
   // Calculate angle increment to advance 1px horizontally on screen.
   var angleIncrement = this.fov / canvas.width
   // Distance from screen
   var distanceFromScreen = canvas.width / 2 / Math.tan(this.fov / 2 * DEG)
-
   // Cast all the rays and draw screen (canvas) wall slices from left to right.
   for (var x = 0; x < canvas.width; x++) {
-    var distance = this.castRay(angle, map)
+    distance = this.castRay(castAngle, map)
     // Correct fish eye distortion
     // Ray angle (angle) need to be made relative to the camera angle.
-    distance = distance * Math.cos((this.angle - angle) * DEG)
-
+    distance = distance * Math.cos((this.angle - castAngle) * DEG)
     var sliceHeight = map.wallHeight / distance * distanceFromScreen
 
     // Center column vertically
@@ -46,7 +44,7 @@ Camera.prototype.project = function(map, canvas) {
     context.fillRect(x, y, 1, sliceHeight)
     context.globalAlpha = 1
 
-    angle += angleIncrement
+    castAngle += angleIncrement
   }
 }
 
@@ -81,7 +79,7 @@ Camera.prototype.getHorizontalHit = function(x, y, angle, map){
   } else {
     return null
   }
-  xIncr = Math.abs(angle) == 90 ? 0 : xIncr = yIncr / Math.tan(angle*DEG)
+  xIncr = Math.tan(angle*DEG) == 0 ? 0 : xIncr = yIncr / Math.tan(angle*DEG)
 
   var intersection = this.getFirstHorizontalIntersection(x, y, angle, map)
   var hit = 0;
@@ -105,7 +103,7 @@ Camera.prototype.getFirstHorizontalIntersection = function(x, y, angle, map){
   }else return null
   var point = {}
   point.y = Math.floor(y/map.blockSize) * map.blockSize + offset
-  point.x = Math.abs(angle) == 90 ? x : x + (y-point.y)/Math.tan(-angle * DEG)
+  point.x = Math.tan(-angle * DEG) == 0 ? x : x + (y-point.y)/Math.tan(-angle * DEG)
   return point
 }
 
@@ -132,7 +130,12 @@ Camera.prototype.rayDirection = function(angle){
 Camera.prototype.outsideMap = function(point){
   return (point.y < 0 || point.y > map.height || (point.x < 0 || point.x > map.width))
 }
-Camera.prototype.move = function(distance) {
+Camera.prototype.move = function(distance, map) {
+  var angle = distance < 0 ? this.angle - 180 : this.angle
+  var distanceToObject = Math.abs(this.castRay(angle, map))
+  if (distanceToObject < Math.abs(distance) + 50){
+    return
+  }
   this.x += Math.cos(this.angle * DEG) * distance
   this.y += Math.sin(this.angle * DEG) * distance
 }
